@@ -2,7 +2,8 @@
 
 import { APP_NAME, COMPACT_WIDTH, EXPANDED_WIDTH, PATREON_URL, SETTINGS_MIN_HEIGHT, TICK_MS } from "./config";
 import { computeRested, formatDuration, formatPct } from "./math";
-import { createPlatform, type Platform } from "./platform";
+import { esc } from "./html";
+import { createPlatform, type AppUpdate, type Platform } from "./platform";
 import { effectiveRank, ensurePrefs, mergeCharacters, parseRestedSyncFile, pruneCharactersFromSource, removeCharacter } from "./sync";
 import { normalizeState, type AppState, type DetectedFile, type TrayAction, type WellRestedSetting } from "./types";
 import {
@@ -30,6 +31,8 @@ const ui: UiState = {
   isDesktop: false,
   portraitCache: new Map(),
   syncing: false,
+  os: "web",
+  update: { phase: "idle" },
 };
 
 const nowSec = () => Date.now() / 1000;
@@ -199,7 +202,8 @@ function onFileChanged(path: string, content: string): void {
   tick();
 }
 
-async function setPaths(paths: string[]): Promise<void> {
+/** Applies the backend's list of watched files, dropping characters from removed files. */
+async function applyWatchedFiles(paths: string[]): Promise<void> {
   const unique = [...new Set(paths)];
   for (const old of state.settings.savedVariablesPaths) {
     if (!unique.includes(old)) {
@@ -209,31 +213,45 @@ async function setPaths(paths: string[]): Promise<void> {
   }
   state.settings.savedVariablesPaths = unique;
   save();
-  await platform.setWatchedPaths(unique);
   await syncAll();
 }
 
-async function runDetection(root?: string): Promise<void> {
+async function watchFiles(paths: string[]): Promise<void> {
+  let watched = state.settings.savedVariablesPaths;
+  for (const path of paths) watched = await platform.watchFile(path);
+  await applyWatchedFiles(watched);
+}
+
+/** Handles results from auto-detection or from scanning a picked WoW folder. */
+async function handleDetected(found: DetectedFile[], fromFolder: boolean): Promise<void> {
+  ui.detectResults = found;
+  const known = new Set(state.settings.savedVariablesPaths);
+  const withData = found.filter((f) => f.exists && !known.has(f.path));
+  if (!found.length) {
+    ui.detectMessage = fromFolder
+      ? "No WTF\\Account\\…\\SavedVariables folders found in that folder. Pick the main World of Warcraft folder (the one containing _forever_)."
+      : "Couldn't find World of Warcraft automatically. Use \"Select file…\" or \"WoW folder…\".";
+  } else if (withData.length) {
+    ui.detectMessage = `Found ${found.length} account folder${found.length > 1 ? "s" : ""}; now watching ${withData.length} with RestedSync data.`;
+    await watchFiles(withData.map((f) => f.path));
+  } else {
+    const pending = found.filter((f) => !known.has(f.path));
+    ui.detectMessage = pending.length
+      ? "Found your WoW account folders, but no RestedSync data yet. Click Watch for the client you play (e.g. Forever); it fills in after your next logout."
+      : "Everything found is already being watched.";
+  }
+}
+
+async function runDetection(pickFolder = false): Promise<void> {
   ui.detecting = true;
   ui.detectMessage = "";
   renderAll();
   try {
-    const found: DetectedFile[] = await platform.detect(root);
-    ui.detectResults = found;
-    const known = new Set(state.settings.savedVariablesPaths);
-    const withData = found.filter((f) => f.exists && !known.has(f.path));
-    if (!found.length) {
-      ui.detectMessage = root
-        ? "No WTF\\Account\\…\\SavedVariables folders found in that folder. Pick the main World of Warcraft folder (the one containing _forever_)."
-        : "Couldn't find World of Warcraft automatically. Use \"Select file…\" or \"WoW folder…\".";
-    } else if (withData.length) {
-      ui.detectMessage = `Found ${found.length} account folder${found.length > 1 ? "s" : ""}; now watching ${withData.length} with RestedSync data.`;
-      await setPaths([...state.settings.savedVariablesPaths, ...withData.map((f) => f.path)]);
+    if (pickFolder) {
+      const found = await platform.pickWowFolder();
+      if (found) await handleDetected(found, true);
     } else {
-      const pending = found.filter((f) => !known.has(f.path));
-      ui.detectMessage = pending.length
-        ? "Found your WoW account folders, but no RestedSync data yet. Click Watch for the client you play (e.g. Forever); it fills in after your next logout."
-        : "Everything found is already being watched.";
+      await handleDetected(await platform.detect(), false);
     }
   } catch (err) {
     ui.detectMessage = `Detection failed: ${err instanceof Error ? err.message : String(err)}`;
@@ -281,6 +299,7 @@ function tick(): void {
     }
   }
   renderLive();
+  void autoUpdateTick();
 }
 
 // ---------------------------------------------------------------------------
@@ -346,26 +365,40 @@ async function onAction(action: string, el: HTMLElement): Promise<void> {
     case "auto-detect":
       await runDetection();
       break;
-    case "pick-folder": {
-      const folder = await platform.pickWowFolder();
-      if (folder) await runDetection(folder);
+    case "pick-folder":
+      await runDetection(true);
       break;
-    }
     case "pick-file": {
       const file = await platform.pickSavedVariablesFile();
       if (file) {
-        if (!/RestedSync\.lua$/i.test(file)) {
-          ui.detectMessage = "That doesn't look like RestedSync.lua, but it will be watched anyway.";
-        }
-        await setPaths([...state.settings.savedVariablesPaths, file]);
+        ui.detectMessage = /RestedSync\.lua$/i.test(file) ? "" : "That doesn't look like RestedSync.lua, but it will be watched anyway.";
+        await applyWatchedFiles(await platform.getWatchedFiles());
       }
       break;
     }
     case "add-path":
-      if (el.dataset.path) await setPaths([...state.settings.savedVariablesPaths, el.dataset.path]);
+      if (el.dataset.path) await watchFiles([el.dataset.path]);
       break;
     case "remove-path":
-      if (el.dataset.path) await setPaths(state.settings.savedVariablesPaths.filter((p) => p !== el.dataset.path));
+      if (el.dataset.path) await applyWatchedFiles(await platform.unwatchFile(el.dataset.path));
+      break;
+    case "enable-startup":
+      state.settings.startupPromptDone = true;
+      state.settings.behavior.launchOnStartup = true;
+      save();
+      await platform.setAutostart(true).catch((err) => console.error("autostart", err));
+      renderAll();
+      break;
+    case "dismiss-startup":
+      state.settings.startupPromptDone = true;
+      save();
+      renderAll();
+      break;
+    case "check-update":
+      await checkForUpdate(true);
+      break;
+    case "install-update":
+      await installUpdate();
       break;
     case "remove-char":
       removeCharacter(state, key);
@@ -485,16 +518,111 @@ function onTrayAction(action: TrayAction): void {
 }
 
 // ---------------------------------------------------------------------------
+// Auto-update (signed releases from GitHub; signatures are verified before installing)
+
+const UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const FIRST_UPDATE_CHECK_DELAY_MS = 20_000;
+let pendingUpdate: AppUpdate | null = null;
+let lastUpdateCheck = 0;
+let updateBusy = false;
+
+function updateErrorText(err: unknown): string {
+  const text = err instanceof Error ? err.message : String(err);
+  if (/valid release JSON|404|Not Found|status code/i.test(text)) {
+    return "No published update found (the GitHub repository must be public with a published release).";
+  }
+  if (/network|connect|dns|timed? ?out|offline/i.test(text)) return "Couldn't reach the update server. Check your connection.";
+  return `Update failed: ${text}`;
+}
+
+async function downloadUpdate(): Promise<void> {
+  if (!pendingUpdate) return;
+  const version = pendingUpdate.version;
+  ui.update = { phase: "downloading", version, progress: 0 };
+  renderAll();
+  let lastShown = 0;
+  await pendingUpdate.download((fraction) => {
+    ui.update = { phase: "downloading", version, progress: fraction };
+    if (fraction === null || fraction - lastShown >= 0.05 || fraction === 1) {
+      lastShown = fraction ?? 0;
+      renderAll();
+    }
+  });
+  ui.update = { phase: "ready", version };
+}
+
+async function checkForUpdate(manual: boolean): Promise<void> {
+  if (!platform.isDesktop || updateBusy) return;
+  if (["downloading", "ready", "installing"].includes(ui.update.phase)) return;
+  updateBusy = true;
+  lastUpdateCheck = Date.now();
+  ui.update = { phase: "checking" };
+  if (manual) renderAll();
+  try {
+    const update = await platform.checkForUpdate();
+    if (!update) {
+      ui.update = { phase: "uptodate" };
+      pendingUpdate = null;
+      return;
+    }
+    pendingUpdate = update;
+    ui.update = { phase: "available", version: update.version };
+    if (state.settings.behavior.autoUpdate && !manual) await downloadUpdate();
+  } catch (err) {
+    console.warn("Update check failed", err);
+    ui.update = { phase: "error", message: updateErrorText(err) };
+  } finally {
+    updateBusy = false;
+    renderAll();
+  }
+}
+
+async function installUpdate(): Promise<void> {
+  if (!pendingUpdate || updateBusy) return;
+  updateBusy = true;
+  try {
+    if (ui.update.phase !== "ready") await downloadUpdate();
+    ui.update = { phase: "installing", version: pendingUpdate.version };
+    renderAll();
+    await pendingUpdate.install(); // restarts the app
+  } catch (err) {
+    console.error("Update install failed", err);
+    ui.update = { phase: "error", message: updateErrorText(err) };
+    renderAll();
+  } finally {
+    updateBusy = false;
+  }
+}
+
+/** Automatic mode: installs a downloaded update while the widget is tucked away in the tray. */
+async function autoUpdateTick(): Promise<void> {
+  if (!platform.isDesktop || !state.settings.behavior.autoUpdate) return;
+  if (ui.update.phase === "ready") {
+    if (!(await platform.isWidgetVisible().catch(() => true))) await installUpdate();
+    return;
+  }
+  if (Date.now() - lastUpdateCheck > UPDATE_INTERVAL_MS) await checkForUpdate(false);
+}
+
+// ---------------------------------------------------------------------------
 // Boot
 
 async function boot(): Promise<void> {
   platform = await createPlatform();
   ui.isDesktop = platform.isDesktop;
+  ui.os = platform.os;
   document.documentElement.classList.toggle("desktop", platform.isDesktop);
   const saved = await platform.loadState().catch(() => null);
   const firstRun = saved === null;
   state = normalizeState(saved);
   ui.version = await platform.appVersion().catch(() => "");
+
+  // The backend owns the list of files the widget may read.
+  const watched = await platform.getWatchedFiles().catch(() => state.settings.savedVariablesPaths);
+  for (const old of state.settings.savedVariablesPaths) {
+    if (!watched.includes(old)) pruneCharactersFromSource(state, old);
+  }
+  state.settings.savedVariablesPaths = watched;
 
   mountSkeleton();
   attachEvents();
@@ -503,32 +631,29 @@ async function boot(): Promise<void> {
 
   await platform.onFileChanged(onFileChanged);
   await platform.onTrayAction(onTrayAction);
-  await platform.setWatchedPaths(state.settings.savedVariablesPaths);
   await syncAll();
 
   if (platform.isDesktop) {
     try {
-      if (firstRun && state.settings.behavior.launchOnStartup && !import.meta.env.DEV) {
-        await platform.setAutostart(true);
-      } else if (!firstRun) {
-        // Respect changes made outside the app (e.g. Task Manager → Startup apps).
-        state.settings.behavior.launchOnStartup = await platform.getAutostart();
-      }
+      // Launch on startup is off by default; follow the OS (e.g. Task Manager → Startup apps).
+      state.settings.behavior.launchOnStartup = await platform.getAutostart();
     } catch (err) {
       console.error("autostart", err);
     }
-    if (firstRun) save();
   }
+  if (firstRun) save();
 
   // First run with nothing configured: try to find the WoW folder right away.
   if (firstRun && state.settings.savedVariablesPaths.length === 0) {
     await runDetection();
   }
 
+  lastUpdateCheck = Date.now() - UPDATE_INTERVAL_MS + FIRST_UPDATE_CHECK_DELAY_MS;
   window.setInterval(tick, TICK_MS);
+  renderAll();
 }
 
 boot().catch((err) => {
   console.error(err);
-  document.body.innerHTML = `<pre class="fatal">Failed to start: ${String(err)}</pre>`;
+  document.body.innerHTML = `<pre class="fatal">Failed to start: ${esc(String(err))}</pre>`;
 });

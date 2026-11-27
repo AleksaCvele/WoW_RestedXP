@@ -194,8 +194,11 @@ pub fn widget_ready(app: AppHandle, state: State<'_, WidgetState>) {
     }
 }
 
-/// Native file dialogs take focus; don't let that hide the widget.
-#[tauri::command]
-pub fn set_blur_hide_suppressed(state: State<'_, WidgetState>, suppressed: bool) {
-    state.blur_hide_suppressed.store(suppressed, Ordering::Relaxed);
+/// Native file dialogs take focus; don't let that hide the widget while one is open.
+pub fn with_blur_hide_suppressed<R: Runtime, T>(app: &AppHandle<R>, f: impl FnOnce() -> T) -> T {
+    let state = app.state::<WidgetState>();
+    state.blur_hide_suppressed.store(true, Ordering::Relaxed);
+    let result = f();
+    state.blur_hide_suppressed.store(false, Ordering::Relaxed);
+    result
 }

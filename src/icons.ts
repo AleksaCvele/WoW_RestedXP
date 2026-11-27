@@ -1,6 +1,7 @@
 // Bundled artwork: class crests (src/assets/classes/*.svg), generated race badges and UI glyphs.
 // All artwork here is original; no Blizzard game assets are bundled.
 
+import { esc } from "./html";
 import { classInfo, raceInfo } from "./wow";
 
 const classSvgs = import.meta.glob("./assets/classes/*.svg", {
@@ -40,7 +41,7 @@ const FACTION_COLORS = {
 /** A heraldic shield with the race monogram, tinted by faction, with a gender pip. */
 export function raceBadgeHtml(race: string, gender: number, faction?: string): string {
   const art = findRaceArt(race, gender);
-  if (art) return `<img class="race-art" src="${art}" alt="" draggable="false" />`;
+  if (art) return `<img class="race-art" src="${esc(art)}" alt="" draggable="false" />`;
   const info = raceInfo(race, faction);
   const c = FACTION_COLORS[info.faction];
   const gid = `rg-${info.faction}`;
@@ -50,7 +51,7 @@ export function raceBadgeHtml(race: string, gender: number, faction?: string): s
       <stop offset="0" stop-color="${c.top}"/><stop offset="1" stop-color="${c.bottom}"/>
     </linearGradient></defs>
     <path d="M20 2.5 35 7v11c0 9.6-6.3 16.4-15 19.5C11.3 34.4 5 27.6 5 18V7z" fill="url(#${gid})" stroke="${c.rim}" stroke-width="1.6"/>
-    <text x="20" y="23.5" text-anchor="middle" font-size="12.5" font-weight="700" fill="#f5f0e1" font-family="Georgia, 'Times New Roman', serif">${info.short}</text>
+    <text x="20" y="23.5" text-anchor="middle" font-size="12.5" font-weight="700" fill="#f5f0e1" font-family="Georgia, 'Times New Roman', serif">${esc(info.short)}</text>
     ${pip ? `<text x="20" y="32.5" text-anchor="middle" font-size="7.5" fill="${c.rim}">${pip}</text>` : ""}
   </svg>`;
 }
@@ -76,6 +77,7 @@ const ICONS = {
   check: `<path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`,
   warn: `<path d="M12 3.5 21.5 20h-19z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 10v4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17.2" r="1.1" fill="currentColor"/>`,
   crown: `<path d="M3.5 8 8 11.5 12 5l4 6.5L20.5 8 19 18H5z" fill="currentColor"/>`,
+  download: `<path d="M12 3.5v11M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 19.5h15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`,
   lock: `<rect x="5" y="10.5" width="14" height="10" rx="2" fill="currentColor"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" fill="none" stroke="currentColor" stroke-width="2"/>`,
 } as const;
 

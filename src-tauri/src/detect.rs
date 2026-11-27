@@ -242,11 +242,10 @@ fn sort_and_dedup(found: &mut Vec<DetectedFile>) {
 }
 
 /// Without `root`: searches the usual install locations. With `root`: scans that folder.
-#[tauri::command(async)]
-pub fn detect_saved_variables(root: Option<String>) -> Vec<DetectedFile> {
+pub fn detect(root: Option<&Path>) -> Vec<DetectedFile> {
     let mut found = Vec::new();
     match root {
-        Some(root) => scan_root(Path::new(&root), &mut found),
+        Some(root) => scan_root(root, &mut found),
         None => {
             for root in candidate_roots() {
                 scan_root(&root, &mut found);

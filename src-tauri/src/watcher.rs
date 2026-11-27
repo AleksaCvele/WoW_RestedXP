@@ -14,9 +14,9 @@ use std::time::{Duration, Instant, SystemTime};
 
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, Manager};
 
-use crate::files::{has_extension, read_saved_variables_file};
+use crate::files::{read_saved_variables_file, AllowedFiles};
 
 /// Wait for the game to finish writing before reading.
 const DEBOUNCE: Duration = Duration::from_millis(700);
@@ -51,10 +51,22 @@ pub fn start(app: AppHandle) {
     if let Ok(mut slot) = app.state::<WatcherHandle>().tx.lock() {
         *slot = Some(tx.clone());
     }
+    let initial = app.state::<AllowedFiles>().saved_variables();
+    let _ = tx.send(Msg::SetPaths(initial));
     std::thread::Builder::new()
         .name("savedvariables-watcher".into())
         .spawn(move || run(app, tx, rx))
         .expect("failed to start the SavedVariables watcher thread");
+}
+
+/// Re-reads the allow-list and watches exactly those files.
+pub fn refresh(app: &AppHandle) {
+    let paths = app.state::<AllowedFiles>().saved_variables();
+    if let Ok(guard) = app.state::<WatcherHandle>().tx.lock() {
+        if let Some(tx) = guard.as_ref() {
+            let _ = tx.send(Msg::SetPaths(paths));
+        }
+    }
 }
 
 fn make_watcher(tx: &Sender<Msg>, paths: &[String]) -> Option<RecommendedWatcher> {
@@ -154,17 +166,4 @@ fn run(app: AppHandle, tx: Sender<Msg>, rx: Receiver<Msg>) {
         }
     }
     drop(watcher);
-}
-
-#[tauri::command]
-pub fn set_watched_paths(handle: State<'_, WatcherHandle>, paths: Vec<String>) -> Result<(), String> {
-    let paths: Vec<String> = paths
-        .into_iter()
-        .filter(|p| has_extension(Path::new(p), &["lua"]))
-        .collect();
-    let guard = handle.tx.lock().map_err(|e| e.to_string())?;
-    if let Some(tx) = guard.as_ref() {
-        tx.send(Msg::SetPaths(paths)).map_err(|e| e.to_string())?;
-    }
-    Ok(())
 }

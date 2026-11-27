@@ -7,3 +7,12 @@ src-tauri/gen/schemas/
 .DS_Store
 .vscode/*
 
+release-in/
+release-out/
+# Never commit signing keys or secrets
+*.key
+*.pem
+*.pfx
+*.p12
+.env
+.env.*

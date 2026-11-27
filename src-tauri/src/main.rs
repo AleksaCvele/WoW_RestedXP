@@ -4,7 +4,7 @@
 // * widget.rs  – bottom-right floating window: sizing, pin/always-on-top, hide on blur
 // * watcher.rs – watches RestedSync.lua SavedVariables and pushes changes to the UI
 // * detect.rs  – finds World of Warcraft SavedVariables folders
-// * files.rs   – app state persistence and safe file reads
+// * files.rs   – app state, the allow-list of readable files, native file pickers
 
 // Hide the console window on Windows release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -15,7 +15,7 @@ mod tray;
 mod watcher;
 mod widget;
 
-use tauri::{RunEvent, WindowEvent};
+use tauri::{Manager, RunEvent, WindowEvent};
 
 /// Passed by the OS autostart entry so the app boots silently into the tray.
 pub const MINIMIZED_ARG: &str = "--minimized";
@@ -36,6 +36,9 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_process::init())
+        // Updates are verified against the public key in tauri.conf.json before installing.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(widget::WidgetState::new(launched_minimized))
         .manage(watcher::WatcherHandle::default())
         .setup(|app| {
@@ -43,6 +46,7 @@ fn main() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
+            app.manage(files::AllowedFiles::load(app.handle()));
             tray::create(app.handle())?;
             watcher::start(app.handle().clone());
             Ok(())
@@ -59,14 +63,18 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             files::load_app_state,
             files::save_app_state,
+            files::get_watched_files,
+            files::watch_saved_variables,
+            files::unwatch_saved_variables,
             files::read_saved_variables,
+            files::detect_saved_variables,
+            files::pick_saved_variables_file,
+            files::pick_wow_folder,
+            files::pick_portrait_image,
             files::read_image_data_url,
-            detect::detect_saved_variables,
-            watcher::set_watched_paths,
             widget::apply_window_layout,
             widget::hide_widget,
             widget::widget_ready,
-            widget::set_blur_hide_suppressed,
             tray::set_tray_tooltip,
         ])
         .build(tauri::generate_context!())

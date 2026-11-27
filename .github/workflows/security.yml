@@ -1,0 +1,36 @@
+name: Security audit
+
+# Checks all npm and Rust dependencies against public vulnerability databases:
+# weekly, on demand, and whenever a lockfile changes.
+
+on:
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+  push:
+    paths:
+      - package-lock.json
+      - src-tauri/Cargo.lock
+      - .github/workflows/security.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: npm audit (code shipped in the app)
+        run: npm audit --omit=dev --audit-level=moderate
+      - name: npm audit (build tools)
+        run: npm audit --audit-level=high
+      - name: cargo audit (Rust crates)
+        run: |
+          cargo install cargo-audit --locked
+          cargo audit --file src-tauri/Cargo.lock

@@ -1,9 +1,11 @@
 // HTML builders for the widget. Everything user- or file-provided goes through esc().
 
 import { APP_NAME, SAVED_VARIABLES_FILE } from "./config";
+import { esc } from "./html";
 import { classIconSvg, icon, raceBadgeHtml } from "./icons";
 import { computeRested, formatAgo, formatDuration, formatPct, type RestedStatus } from "./math";
 import { describeSourcePath, effectiveRank, flavorLabel, isRemoved, prefsFor } from "./sync";
+import type { OsName } from "./platform";
 import type { AppState, CharacterPrefs, DetectedFile, SyncedCharacter } from "./types";
 import { classInfo, genderLabel, raceInfo } from "./wow";
 
@@ -24,6 +26,16 @@ export interface UiState {
   /** Data URLs for portraits that point at local files. */
   portraitCache: Map<string, string>;
   syncing: boolean;
+  os: OsName;
+  update: UpdateStatus;
+}
+
+export interface UpdateStatus {
+  phase: "idle" | "checking" | "uptodate" | "available" | "downloading" | "ready" | "installing" | "error";
+  version?: string;
+  /** 0..1 while downloading, null when the size is unknown. */
+  progress?: number | null;
+  message?: string;
 }
 
 export interface CharView {
@@ -35,14 +47,7 @@ export interface CharView {
   eligible: boolean;
 }
 
-export function esc(value: unknown): string {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
+export { esc };
 
 export function buildViews(state: AppState, nowSec: number): CharView[] {
   const views: CharView[] = [];
@@ -103,7 +108,7 @@ export function localPortraitPath(url: string): string | null {
 function portraitSrc(url: string, ui: UiState): string | null {
   const u = url.trim();
   if (!u) return null;
-  if (/^https?:\/\//i.test(u) || /^data:image\//i.test(u)) return u;
+  if (/^https:\/\//i.test(u)) return u;
   const local = localPortraitPath(u);
   if (local) return ui.portraitCache.get(local) ?? null;
   return null;
@@ -288,14 +293,52 @@ function emptyStateHtml(state: AppState, ui: UiState, allHidden: boolean): strin
   </div>`;
 }
 
+function osLabel(os: OsName): string {
+  return os === "windows" ? "Windows" : os === "macos" ? "macOS" : "your computer";
+}
+
+function updateBanner(state: AppState, ui: UiState): string {
+  const u = ui.update;
+  const v = u.version ? ` v${esc(u.version)}` : "";
+  switch (u.phase) {
+    case "available":
+      return `<div class="banner">${icon("download")}<span>Update${v} is available.</span><span class="spacer"></span><button class="btn btn-sm primary" data-action="install-update">Update</button></div>`;
+    case "downloading":
+      return `<div class="banner">${icon("download")}<span>Downloading update${v}… ${u.progress != null ? `${Math.round(u.progress * 100)}%` : ""}</span></div>`;
+    case "ready":
+      return `<div class="banner">${icon("download")}<span>Update${v} is ready.${state.settings.behavior.autoUpdate ? " It installs when the widget is hidden." : ""}</span><span class="spacer"></span><button class="btn btn-sm primary" data-action="install-update">Restart now</button></div>`;
+    case "installing":
+      return `<div class="banner">${icon("download")}<span>Installing update${v}…</span></div>`;
+    default:
+      return "";
+  }
+}
+
+function startupPrompt(state: AppState, ui: UiState, views: CharView[]): string {
+  const b = state.settings.behavior;
+  if (!ui.isDesktop || state.settings.startupPromptDone || b.launchOnStartup || views.length === 0) return "";
+  return `<div class="banner prompt">
+    <div class="prompt-text"><b>Start with ${osLabel(ui.os)}?</b><span>The widget can start quietly in the tray when you sign in, so you get a notification when an alt is fully rested.</span></div>
+    <div class="prompt-actions">
+      <button class="btn btn-sm primary" data-action="enable-startup">Turn on</button>
+      <button class="btn btn-sm" data-action="dismiss-startup">No thanks</button>
+    </div>
+  </div>`;
+}
+
 export function renderRoster(state: AppState, ui: UiState, views: CharView[], nowSec: number): string {
   const visible = visibleViews(state, views);
-  if (visible.length === 0) return emptyStateHtml(state, ui, views.length > 0);
-  if (state.settings.viewMode === "compact") {
-    return `<div class="crows">${visible.map((v) => compactRowHtml(state, ui, v)).join("")}</div>`;
+  const banners = updateBanner(state, ui) + startupPrompt(state, ui, views);
+  let list: string;
+  if (visible.length === 0) {
+    list = emptyStateHtml(state, ui, views.length > 0);
+  } else if (state.settings.viewMode === "compact") {
+    list = `<div class="crows">${visible.map((v) => compactRowHtml(state, ui, v)).join("")}</div>`;
+  } else {
+    const multiFlavor = new Set(visible.map((v) => v.ch.flavor)).size > 1;
+    list = `<div class="cards">${visible.map((v) => cardHtml(state, ui, v, nowSec, multiFlavor)).join("")}</div>`;
   }
-  const multiFlavor = new Set(visible.map((v) => v.ch.flavor)).size > 1;
-  return `<div class="cards">${visible.map((v) => cardHtml(state, ui, v, nowSec, multiFlavor)).join("")}</div>`;
+  return `<div class="roster-inner">${banners}${list}</div>`;
 }
 
 export function renderFooter(state: AppState, ui: UiState, nowSec: number): string {
@@ -399,7 +442,7 @@ function characterSettingsHtml(state: AppState, ui: UiState, views: CharView[]):
         ${
           showPortrait
             ? `<div class="portrait-row">
-                <input type="text" class="text" data-action="portrait" data-key="${esc(ch.key)}" value="${esc(prefs.portraitUrl)}" placeholder="Portrait URL (https://…) or image file" spellcheck="false" />
+                <input type="text" class="text" data-action="portrait" data-key="${esc(ch.key)}" value="${esc(prefs.portraitUrl)}" placeholder="https:// image link, or Browse for a file" spellcheck="false" />
                 ${ui.isDesktop ? `<button class="ibtn" data-action="browse-portrait" data-key="${esc(ch.key)}" title="Choose an image file">${icon("folder")}</button>` : ""}
               </div>`
             : ""
@@ -407,6 +450,50 @@ function characterSettingsHtml(state: AppState, ui: UiState, views: CharView[]):
       </div>`;
     })
     .join("");
+}
+
+function updatesSection(state: AppState, ui: UiState): string {
+  const u = ui.update;
+  const v = u.version ? `v${esc(u.version)}` : "";
+  let status = "";
+  let button = `<button class="btn btn-sm" data-action="check-update">${icon("refresh")}Check now</button>`;
+  switch (u.phase) {
+    case "checking":
+      status = "Checking for updates…";
+      button = "";
+      break;
+    case "uptodate":
+      status = `${icon("check")}You're on the latest version.`;
+      break;
+    case "available":
+      status = `${v} is available.`;
+      button = `<button class="btn btn-sm primary" data-action="install-update">Install ${v}</button>`;
+      break;
+    case "downloading":
+      status = `Downloading ${v}… ${u.progress != null ? `${Math.round(u.progress * 100)}%` : ""}`;
+      button = "";
+      break;
+    case "ready":
+      status = `${v} is downloaded.`;
+      button = `<button class="btn btn-sm primary" data-action="install-update">Restart &amp; update</button>`;
+      break;
+    case "installing":
+      status = `Installing ${v}…`;
+      button = "";
+      break;
+    case "error":
+      status = `<span class="err-text">${esc(u.message ?? "Update check failed.")}</span>`;
+      break;
+  }
+  return `<section class="group">
+    <h3>Updates</h3>
+    ${toggle("behavior.autoUpdate", state.settings.behavior.autoUpdate, "Install updates automatically", "Checks every 6 hours. Updates are signed and verified before they install.")}
+    <div class="update-row">
+      <span class="update-status">${ui.version ? `Version ${esc(ui.version)}` : ""}${status ? ` · ${status}` : ""}</span>
+      <span class="spacer"></span>
+      ${button}
+    </div>
+  </section>`;
 }
 
 export function renderSettings(state: AppState, ui: UiState, views: CharView[]): string {
@@ -461,7 +548,7 @@ export function renderSettings(state: AppState, ui: UiState, views: CharView[]):
         <h3>Behavior &amp; alerts</h3>
         ${toggle("behavior.autoSort", b.autoSort, "Auto-sort by highest rested %")}
         ${toggle("behavior.notifyOnMax", b.notifyOnMax, "Notify me when an alt is fully rested", "Desktop notification when a character reaches its cap")}
-        ${ui.isDesktop ? toggle("behavior.launchOnStartup", b.launchOnStartup, "Launch on startup", "Starts minimized to the tray") : ""}
+        ${ui.isDesktop ? toggle("behavior.launchOnStartup", b.launchOnStartup, `Start with ${osLabel(ui.os)}`, "Starts quietly in the tray when you sign in") : ""}
         ${toggle("behavior.hideUntracked", b.hideUntracked, "Hide benched (untracked) characters")}
         ${toggle("behavior.hideMaxLevel", b.hideMaxLevel, "Hide max-level characters")}
         <label class="field">
@@ -474,6 +561,8 @@ export function renderSettings(state: AppState, ui: UiState, views: CharView[]):
         <h3>Characters</h3>
         ${characterSettingsHtml(state, ui, views)}
       </section>
+
+      ${ui.isDesktop ? updatesSection(state, ui) : ""}
 
       <section class="group support-group">
         <h3>Support</h3>

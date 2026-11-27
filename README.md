@@ -14,8 +14,9 @@ Anniversary and Retail.
 * **Well Rested perk detected for you.** After a character logs back in from a break of
   roughly 10+ hours, the widget measures how fast its rested XP actually grew and works out
   its Well Rested rank (0–5). You can still set the rank by hand.
-* Lives in the tray, starts with Windows/macOS, and sends a notification when an alt is
-  fully rested. No ads, no account, nothing is sent over the internet.
+* Lives in the tray, can start with Windows/macOS (off until you turn it on), sends a
+  notification when an alt is fully rested, and keeps itself up to date with signed
+  updates. No ads, no account, no telemetry.
 
 | Expanded | Compact | Settings |
 | :---: | :---: | :---: |
@@ -67,12 +68,17 @@ API calls (`GetXPExhaustion`, `UnitXPMax`, `IsResting`, ...).
 
 ## 2. Install the widget
 
-**Option A: download a build.** Every push to this repository builds a Windows installer on
-GitHub Actions. Open the repository's **Actions** tab → the latest **Build** run →
-**Artifacts** → `installer-windows` (contains a `.exe` setup and an `.msi`). Pushing a tag
-such as `v1.0.0` also builds the macOS `.dmg` and creates a draft release.
+**Option A: download a release.** Get the latest installer from the repository's
+**Releases** page: the `.exe` for Windows, the `.dmg` for macOS. Each release lists
+SHA-256 checksums in `SHA256SUMS.txt` (see [SECURITY.md](SECURITY.md)).
 
-> Windows SmartScreen may warn about an unsigned app: click **More info → Run anyway**.
+Test builds: every push also builds a Windows installer on GitHub Actions (**Actions** tab →
+latest **Build** run → **Artifacts** → `installer-windows`).
+
+> **"Windows protected your PC".** The app isn't code-signed yet, so Windows SmartScreen
+> warns about it: click **More info → Run anyway**. On macOS, right-click the app →
+> **Open** (or *System Settings → Privacy & Security → Open Anyway*). See
+> [Code signing](#code-signing) for how to remove these warnings.
 
 **Option B: build it yourself.** See [Development](#development).
 
@@ -103,6 +109,11 @@ play several clients, you can watch several files at once.
 * **⋯** on a card jumps to that character's settings: *Track character* (bench an alt
   without deleting it), *Well Rested* rank, portrait, *Remove*.
 * The tray tooltip reads e.g. `WoW Rested Tracker — 3/9 Alts Maxed`.
+* **Start with Windows/macOS** is off by default. Once your characters show up, the widget
+  asks you once whether to turn it on. You can change it later in Settings.
+* **Updates** install themselves while the widget is hidden in the tray (toggle in
+  Settings → Updates, plus a *Check now* button). Every update is signed, and the app
+  refuses anything that doesn't carry a valid signature.
 
 ### Settings
 
@@ -111,7 +122,8 @@ play several clients, you can watch several files at once.
 | Data source | Watched files with status, Auto-Detect, Select file…, WoW folder… |
 | Display | Rested XP bar · countdown timer · level badge · Inn/World icon · inline Well Rested selector · color bars by class (off: rested blue → emerald when maxed) |
 | Avatar style | Class crest · Race + class badge · Custom portrait (URL or image file, falls back to the class crest) |
-| Behavior & alerts | Auto-sort by highest rested % · notify when an alt is fully rested · launch on startup (minimized to tray) · hide benched characters · hide max-level characters · default Well Rested rank |
+| Behavior & alerts | Auto-sort by highest rested % · notify when an alt is fully rested · start with Windows/macOS (off by default) · hide benched characters · hide max-level characters · default Well Rested rank |
+| Updates | Install updates automatically (on by default) · current version · Check now |
 | Characters | Per character: track toggle, Well Rested rank, portrait, remove |
 
 ---
@@ -184,7 +196,11 @@ cd src-tauri && cargo test && cd ..   # Rust tests (WoW folder detection)
 
 npm run tauri build    # release build + installers
 npm run package:addon  # → release/RestedSync-<version>.zip
+npm run version:set 1.1.0   # bump the app version everywhere
 ```
+
+`.npmrc` sets `ignore-scripts=true`, so packages can't run install scripts on your machine.
+The project doesn't need any.
 
 `npm run tauri build` writes the installers to:
 
@@ -195,6 +211,8 @@ npm run package:addon  # → release/RestedSync-<version>.zip
 
 * **Patreon link:** set `PATREON_URL` in [`src/config.ts`](src/config.ts). It's used by the
   footer heart, the Settings drawer and the tray menu.
+* **Update server:** `plugins.updater` in [`src-tauri/tauri.conf.json`](src-tauri/tauri.conf.json)
+  (public key + `latest.json` URL on this repository's Releases).
 * **Addon interface version:** `## Interface:` in
   [`addon/RestedSync/RestedSync.toc`](addon/RestedSync/RestedSync.toc). Type
   `/dump select(4, GetBuildInfo())` in-game to see your client's number.
@@ -220,10 +238,77 @@ src-tauri/                 Rust backend (Tauri v2)
   src/widget.rs            bottom-right anchoring, pin, hide-on-blur
   src/watcher.rs           SavedVariables file watcher (notify + fallback poll)
   src/detect.rs            WoW folder auto-detection
-  src/files.rs             state persistence, guarded file reads
+  src/files.rs             state, allow-list of readable files, native file pickers
 tests/                     Vitest tests + a Lua harness that runs the real addon
-.github/workflows/build.yml  CI: tests, addon zip, Windows/macOS installers
+scripts/                   addon zip, version bump, CI build + release helpers
+.github/workflows/         build.yml (tests, installers, draft releases), security.yml (audits)
+.github/dependabot.yml     weekly dependency update PRs
+SECURITY.md                official downloads, what the app accesses, how to report issues
 ```
+
+---
+
+## Releasing a new version (and auto-update)
+
+One-time setup (the update-signing key):
+
+1. GitHub → repository **Settings → Secrets and variables → Actions → New repository secret**:
+   * `TAURI_SIGNING_PRIVATE_KEY`: the contents of the private key file
+   * `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: its password
+2. Keep a backup of both in a password manager. If the key is lost, installed copies can't
+   auto-update to new releases any more (people would have to reinstall by hand).
+   To make a new key: `npx tauri signer generate -w ~/.tauri/rested-tracker.key`, then put
+   the new `.pub` contents into `plugins.updater.pubkey` in `src-tauri/tauri.conf.json`.
+3. The repository must be **public**: the app downloads `latest.json` and the installers
+   from the Releases page without logging in.
+
+Each release:
+
+```bash
+npm run version:set 1.1.0
+git commit -am "Release 1.1.0"
+git tag v1.1.0
+git push origin main v1.1.0
+```
+
+CI builds Windows + macOS, signs the update files and creates a **draft** release with the
+installers, `latest.json` and `SHA256SUMS.txt`. Check the draft, then click **Publish**.
+Installed copies pick it up within about 6 hours.
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for official download locations, what the app can access and
+how to report a vulnerability. In short:
+
+* The addon runs in WoW's sandbox. It has no network or file access.
+* The widget can only read files you picked or that auto-detection found. That allow-list
+  is kept by the Rust backend, not the web UI. Everything read from save files is
+  HTML-escaped, and a strict Content-Security-Policy is applied.
+* Updates are signature-checked. The signing key is only given to tag builds in CI.
+* CI uses only GitHub's own actions, with a read-only token except when creating a release.
+  Lockfiles are enforced, dependency install scripts are disabled, Dependabot proposes
+  updates weekly, and the *Security audit* workflow checks npm and Rust dependencies
+  against known vulnerabilities.
+
+Recommended GitHub settings: two-factor authentication on your account; **Settings →
+Actions → General → Allow actions created by GitHub** only; **Settings → Code security →**
+enable Dependabot alerts, secret scanning and private vulnerability reporting; and a
+branch protection rule on `main`.
+
+### Code signing
+
+Unsigned Windows apps trigger SmartScreen's "Windows protected your PC" until the file
+builds up reputation, and each new version starts from scratch. Options:
+
+* **SignPath Foundation**: free code signing for open-source projects (the publisher shown
+  is "SignPath Foundation"; the repository must be public and the project must apply).
+* **Certum Open Source Code Signing**: an inexpensive certificate in your own name for open-source
+  developers.
+* Even with a certificate, SmartScreen can still warn for brand-new files until they
+  build up reputation.
+
+macOS: Gatekeeper blocks un-notarized apps unless you have an Apple Developer account
+(paid, yearly) to sign and notarize them.
 
 ---
 
@@ -239,8 +324,16 @@ AddOns* or edit `## Interface:`.
 **No notification.** On Windows, check *Settings → System → Notifications* and Focus/Do Not
 Disturb. Notifications fire once per character per logout snapshot.
 
-**Widget doesn't start with Windows.** Check *Task Manager → Startup apps* and the *Launch
-on startup* toggle. The widget follows whatever Windows says.
+**Widget doesn't start with Windows.** It's off by default: turn on *Settings → Start with
+Windows*. Also check *Task Manager → Startup apps*; the widget follows whatever Windows says.
+
+**"No published update found".** Auto-update needs a public repository with a *published*
+(not draft) release whose `latest.json` was signed. See
+[Releasing a new version](#releasing-a-new-version-and-auto-update).
+
+**A portrait from a file doesn't show.** Use the folder button next to the portrait field.
+For safety the widget only reads images you picked through that dialog. Web links must
+start with `https://`.
 
 **Where are my settings stored?** `%APPDATA%\com.restedsync.tracker\state.json` on Windows,
 `~/Library/Application Support/com.restedsync.tracker/` on macOS.
@@ -249,10 +342,14 @@ on startup* toggle. The widget follows whatever Windows says.
 
 ## Privacy & policy
 
-The widget makes no network requests (except opening your browser if you click *Support*,
-or loading a portrait URL you entered) and only reads the files you point it at. The addon
-contains no URLs, ads or monetization and only uses standard Blizzard API functions, in line
-with Blizzard's UI Add-On Development Policy.
+The widget has no telemetry and no accounts. It only goes online to check this
+repository's Releases for signed updates (can be turned off), to open links you click,
+and to load portrait links you entered. It only reads the files you point it at.
+
+The addon contains no URLs, ads, donation requests or monetization, and only uses standard
+Blizzard API functions, in line with Blizzard's UI Add-On Development Policy. (The policy
+forbids asking for donations *in the game*. The optional Patreon link lives only in the
+desktop app and on the project page.)
 
 World of Warcraft and Blizzard Entertainment are trademarks of Blizzard Entertainment, Inc.
 This project is not affiliated with or endorsed by Blizzard Entertainment. All artwork in

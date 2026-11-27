@@ -76,6 +76,8 @@ export interface BehaviorSettings {
   launchOnStartup: boolean;
   hideUntracked: boolean;
   hideMaxLevel: boolean;
+  /** Check for, download and install signed updates automatically. */
+  autoUpdate: boolean;
 }
 
 export interface Settings {
@@ -87,6 +89,8 @@ export interface Settings {
   pinned: boolean;
   /** Rank used for characters set to "Auto" when no rank could be detected. */
   defaultWellRestedRank: number;
+  /** The one-time "start with Windows/macOS?" prompt was answered. */
+  startupPromptDone: boolean;
 }
 
 export interface AppState {
@@ -128,14 +132,16 @@ export const DEFAULT_SETTINGS: Settings = {
   behavior: {
     autoSort: true,
     notifyOnMax: true,
-    launchOnStartup: true,
+    launchOnStartup: false,
     hideUntracked: false,
     hideMaxLevel: false,
+    autoUpdate: true,
   },
   avatarMode: "class",
   viewMode: "expanded",
   pinned: false,
   defaultWellRestedRank: 0,
+  startupPromptDone: false,
 };
 
 export const DEFAULT_PREFS: CharacterPrefs = {

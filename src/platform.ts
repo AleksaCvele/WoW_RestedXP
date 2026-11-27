@@ -3,21 +3,41 @@
 
 import type { AppState, DetectedFile, FileReadResult, TrayAction } from "./types";
 
+/** A downloadable, signature-verified app update. */
+export interface AppUpdate {
+  version: string;
+  notes?: string;
+  /** Downloads the update; `onProgress` receives 0..1, or null when the size is unknown. */
+  download(onProgress?: (fraction: number | null) => void): Promise<void>;
+  /** Installs a downloaded update and restarts the app. */
+  install(): Promise<void>;
+}
+
+export type OsName = "windows" | "macos" | "linux" | "web";
+
 export interface Platform {
   readonly isDesktop: boolean;
+  readonly os: OsName;
   loadState(): Promise<unknown | null>;
   saveState(state: AppState): Promise<void>;
+  /** SavedVariables files the backend has approved and is watching. */
+  getWatchedFiles(): Promise<string[]>;
+  /** Watch a file returned by detection; returns the new watched list. */
+  watchFile(path: string): Promise<string[]>;
+  unwatchFile(path: string): Promise<string[]>;
   readFiles(paths: string[]): Promise<FileReadResult[]>;
-  setWatchedPaths(paths: string[]): Promise<void>;
-  detect(root?: string): Promise<DetectedFile[]>;
+  detect(): Promise<DetectedFile[]>;
+  /** Native picker; the chosen file is approved and watched by the backend. */
   pickSavedVariablesFile(): Promise<string | null>;
-  pickWowFolder(): Promise<string | null>;
+  /** Native folder picker + scan; null when cancelled. */
+  pickWowFolder(): Promise<DetectedFile[] | null>;
   pickImage(): Promise<string | null>;
   readImageDataUrl(path: string): Promise<string>;
   setTrayTooltip(text: string): Promise<void>;
   /** Resize the widget and anchor it to the bottom-right corner of the primary monitor. */
   layout(width: number, height: number, pinned: boolean): Promise<void>;
   hideWidget(): Promise<void>;
+  isWidgetVisible(): Promise<boolean>;
   /** Called once after the first render; shows the window unless launched with --minimized. */
   ready(): Promise<void>;
   openUrl(url: string): Promise<void>;
@@ -26,8 +46,17 @@ export interface Platform {
   getAutostart(): Promise<boolean>;
   setAutostart(enabled: boolean): Promise<void>;
   appVersion(): Promise<string>;
+  checkForUpdate(): Promise<AppUpdate | null>;
+  relaunch(): Promise<void>;
   onFileChanged(cb: (path: string, content: string) => void): Promise<void>;
   onTrayAction(cb: (action: TrayAction) => void): Promise<void>;
+}
+
+function detectOs(): OsName {
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  if (/Windows/i.test(ua)) return "windows";
+  if (/Mac OS X|Macintosh/i.test(ua)) return "macos";
+  return "linux";
 }
 
 const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -36,25 +65,16 @@ async function createTauriPlatform(): Promise<Platform> {
   const { invoke } = await import("@tauri-apps/api/core");
   const { listen } = await import("@tauri-apps/api/event");
   const { getVersion } = await import("@tauri-apps/api/app");
-  const dialog = await import("@tauri-apps/plugin-dialog");
+  const { getCurrentWindow } = await import("@tauri-apps/api/window");
   const opener = await import("@tauri-apps/plugin-opener");
   const notification = await import("@tauri-apps/plugin-notification");
   const autostart = await import("@tauri-apps/plugin-autostart");
-
-  // Native dialogs steal focus; keep the unpinned widget from hiding behind them.
-  async function withDialog<T>(fn: () => Promise<T>): Promise<T> {
-    await invoke("set_blur_hide_suppressed", { suppressed: true });
-    try {
-      return await fn();
-    } finally {
-      await invoke("set_blur_hide_suppressed", { suppressed: false });
-    }
-  }
-
-  const single = (v: string | string[] | null): string | null => (Array.isArray(v) ? (v[0] ?? null) : v);
+  const updater = await import("@tauri-apps/plugin-updater");
+  const processApi = await import("@tauri-apps/plugin-process");
 
   return {
     isDesktop: true,
+    os: detectOs(),
     async loadState() {
       const text = await invoke<string | null>("load_app_state");
       if (!text) return null;
@@ -65,38 +85,19 @@ async function createTauriPlatform(): Promise<Platform> {
       }
     },
     saveState: (state) => invoke("save_app_state", { json: JSON.stringify(state) }),
+    getWatchedFiles: () => invoke<string[]>("get_watched_files"),
+    watchFile: (path) => invoke<string[]>("watch_saved_variables", { path }),
+    unwatchFile: (path) => invoke<string[]>("unwatch_saved_variables", { path }),
     readFiles: (paths) => invoke<FileReadResult[]>("read_saved_variables", { paths }),
-    setWatchedPaths: (paths) => invoke("set_watched_paths", { paths }),
-    detect: (root) => invoke<DetectedFile[]>("detect_saved_variables", { root: root ?? null }),
-    pickSavedVariablesFile: () =>
-      withDialog(async () =>
-        single(
-          await dialog.open({
-            title: "Select RestedSync.lua",
-            multiple: false,
-            directory: false,
-            filters: [{ name: "RestedSync SavedVariables", extensions: ["lua"] }],
-          }),
-        ),
-      ),
-    pickWowFolder: () =>
-      withDialog(async () =>
-        single(await dialog.open({ title: "Select your World of Warcraft folder", directory: true, multiple: false })),
-      ),
-    pickImage: () =>
-      withDialog(async () =>
-        single(
-          await dialog.open({
-            title: "Choose a portrait image",
-            multiple: false,
-            filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp", "gif"] }],
-          }),
-        ),
-      ),
+    detect: () => invoke<DetectedFile[]>("detect_saved_variables"),
+    pickSavedVariablesFile: () => invoke<string | null>("pick_saved_variables_file"),
+    pickWowFolder: () => invoke<DetectedFile[] | null>("pick_wow_folder"),
+    pickImage: () => invoke<string | null>("pick_portrait_image"),
     readImageDataUrl: (path) => invoke<string>("read_image_data_url", { path }),
     setTrayTooltip: (text) => invoke("set_tray_tooltip", { text }),
     layout: (width, height, pinned) => invoke("apply_window_layout", { width, height, pinned }),
     hideWidget: () => invoke("hide_widget"),
+    isWidgetVisible: () => getCurrentWindow().isVisible(),
     ready: () => invoke("widget_ready"),
     openUrl: (url) => opener.openUrl(url),
     async ensureNotificationPermission() {
@@ -109,6 +110,31 @@ async function createTauriPlatform(): Promise<Platform> {
     getAutostart: () => autostart.isEnabled(),
     setAutostart: (enabled) => (enabled ? autostart.enable() : autostart.disable()),
     appVersion: () => getVersion(),
+    async checkForUpdate() {
+      const update = await updater.check({ timeout: 30_000 });
+      if (!update) return null;
+      return {
+        version: update.version,
+        notes: update.body,
+        async download(onProgress) {
+          let total = 0;
+          let done = 0;
+          await update.download((event) => {
+            if (event.event === "Started") total = event.data.contentLength ?? 0;
+            if (event.event === "Progress") {
+              done += event.data.chunkLength;
+              onProgress?.(total > 0 ? Math.min(1, done / total) : null);
+            }
+          });
+        },
+        async install() {
+          // Windows: the installer closes and reopens the app itself.
+          await update.install();
+          await processApi.relaunch();
+        },
+      };
+    },
+    relaunch: () => processApi.relaunch(),
     async onFileChanged(cb) {
       await listen<{ path: string; content: string }>("savedvariables-changed", (e) => cb(e.payload.path, e.payload.content));
     },
@@ -122,8 +148,10 @@ async function createBrowserPlatform(): Promise<Platform> {
   const { demoFiles, DEMO_PATHS } = await import("./demo");
   const STORAGE_KEY = "rested-tracker-demo-state";
   const files = demoFiles();
+  let watched = [...DEMO_PATHS];
   return {
     isDesktop: false,
+    os: "web",
     async loadState() {
       try {
         const text = localStorage.getItem(STORAGE_KEY);
@@ -131,7 +159,7 @@ async function createBrowserPlatform(): Promise<Platform> {
       } catch {
         /* storage unavailable */
       }
-      return { settings: { savedVariablesPaths: [...DEMO_PATHS] } };
+      return {};
     },
     async saveState(state) {
       try {
@@ -145,7 +173,17 @@ async function createBrowserPlatform(): Promise<Platform> {
         files[path] !== undefined ? { path, content: files[path], modifiedMs: Date.now() } : { path, error: "File not found" },
       );
     },
-    async setWatchedPaths() {},
+    async getWatchedFiles() {
+      return [...watched];
+    },
+    async watchFile(path) {
+      watched = [...new Set([...watched, path])];
+      return [...watched];
+    },
+    async unwatchFile(path) {
+      watched = watched.filter((p) => p !== path);
+      return [...watched];
+    },
     async detect() {
       return DEMO_PATHS.map((path) => ({
         path,
@@ -155,6 +193,7 @@ async function createBrowserPlatform(): Promise<Platform> {
       }));
     },
     async pickSavedVariablesFile() {
+      watched = [...new Set([...watched, DEMO_PATHS[0]])];
       return DEMO_PATHS[0];
     },
     async pickWowFolder() {
@@ -173,6 +212,9 @@ async function createBrowserPlatform(): Promise<Platform> {
       document.documentElement.style.setProperty("--preview-width", `${width}px`);
     },
     async hideWidget() {},
+    async isWidgetVisible() {
+      return true;
+    },
     async ready() {},
     async openUrl(url) {
       window.open(url, "_blank", "noopener");
@@ -189,6 +231,12 @@ async function createBrowserPlatform(): Promise<Platform> {
     async setAutostart() {},
     async appVersion() {
       return "dev";
+    },
+    async checkForUpdate() {
+      return null;
+    },
+    async relaunch() {
+      location.reload();
     },
     async onFileChanged() {},
     async onTrayAction() {},
