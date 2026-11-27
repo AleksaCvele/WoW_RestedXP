@@ -79,8 +79,16 @@ latest **Build** run → **Artifacts** → `installer-windows`).
 > warns about it: click **More info → Run anyway**. On macOS, right-click the app →
 > **Open** (or *System Settings → Privacy & Security → Open Anyway*). See
 > [Code signing](#code-signing) for how to remove these warnings.
+>
+> If **Smart App Control** is on (Windows 11), it blocks unsigned apps outright and there's
+> no *Run anyway*. That goes away once releases are code-signed.
 
 **Option B: build it yourself.** See [Development](#development).
+
+**Uninstall:** Windows *Settings → Apps → Installed apps → WoW Rested Tracker →
+Uninstall* (on macOS, drag the app to the Trash). Your settings stay in the folder listed
+under [Where are my settings stored?](#troubleshooting) until you delete it. To remove the
+addon, delete the `AddOns\RestedSync` folder.
 
 ## 3. Point the widget at RestedSync.lua
 
@@ -179,12 +187,17 @@ rates above match the live game. Pick a rank manually in the dropdown to overrid
 
 Full list: <https://v2.tauri.app/start/prerequisites/>
 
+> **Windows 11 Smart App Control** blocks the unsigned build scripts Cargo compiles, so
+> `npm run tauri dev` / `cargo build` fail with *"An Application Control policy has blocked
+> this file"* (os error 4551). Building locally needs Smart App Control off (Windows
+> Security → App & browser control → Smart App Control settings). `npm run dev` and the
+> CI builds are not affected.
+
 ### Commands
 
 ```bash
 git clone https://github.com/AleksaCvele/WoW_RestedXP.git
 cd WoW_RestedXP
-git checkout ccr-d0cb1aad-i0pyy6   # until it's merged into main
 
 npm install
 
@@ -298,17 +311,43 @@ branch protection rule on `main`.
 ### Code signing
 
 Unsigned Windows apps trigger SmartScreen's "Windows protected your PC" until the file
-builds up reputation, and each new version starts from scratch. Options:
-
-* **SignPath Foundation**: free code signing for open-source projects (the publisher shown
-  is "SignPath Foundation"; the repository must be public and the project must apply).
-* **Certum Open Source Code Signing**: an inexpensive certificate in your own name for open-source
-  developers.
-* Even with a certificate, SmartScreen can still warn for brand-new files until they
-  build up reputation.
+builds up reputation, and Smart App Control blocks them outright. The Windows releases
+will be signed for free by **SignPath Foundation** (the publisher shown is "SignPath
+Foundation"); see the [Code signing policy](#code-signing-policy). Even signed, a
+brand-new release can still get a SmartScreen warning until it builds up reputation.
 
 macOS: Gatekeeper blocks un-notarized apps unless you have an Apple Developer account
 (paid, yearly) to sign and notarize them.
+
+---
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
+[SignPath Foundation](https://signpath.org/).
+
+> **Status:** applying to SignPath Foundation. Releases published before signing starts
+> are unsigned.
+
+**Team**
+
+* Committers and reviewers: [AleksaCvele](https://github.com/AleksaCvele)
+* Approvers: [AleksaCvele](https://github.com/AleksaCvele)
+
+**What gets signed.** Only the Windows release files (`.exe` and `.msi` installers) that
+this repository's GitHub Actions workflow builds from a version tag. Nothing built
+elsewhere is signed. An approver checks and approves every signing request by hand.
+Changes from people outside the team come in as pull requests and are reviewed before
+they're merged.
+
+**Privacy.** This program will not transfer any information to other networked systems
+unless specifically requested by the user or the person installing or operating it, with
+one exception: while *Settings → Updates → Install updates automatically* is on (the
+default), it checks this repository's GitHub Releases for signed updates shortly after it
+starts and then every 6 hours. Those requests go to GitHub and contain nothing beyond an
+ordinary download (GitHub sees your IP address). See
+[GitHub's privacy statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement)
+and [Privacy & policy](#privacy--policy) below.
 
 ---
 
@@ -343,8 +382,9 @@ start with `https://`.
 ## Privacy & policy
 
 The widget has no telemetry and no accounts. It only goes online to check this
-repository's Releases for signed updates (can be turned off), to open links you click,
-and to load portrait links you entered. It only reads the files you point it at.
+repository's Releases for signed updates (turn off *Settings → Updates → Install updates
+automatically* to stop the automatic checks), to open links you click, and to load
+portrait links you entered. It only reads the files you point it at.
 
 The addon contains no URLs, ads, donation requests or monetization, and only uses standard
 Blizzard API functions, in line with Blizzard's UI Add-On Development Policy. (The policy

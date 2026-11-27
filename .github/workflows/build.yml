@@ -166,4 +166,5 @@ jobs:
             --draft \
             --title "WoW Rested Tracker $GITHUB_REF_NAME" \
             --notes "Windows: download the .exe installer. macOS: the .dmg. WoW addon: RestedSync-*.zip.
-          Verify downloads against SHA256SUMS.txt. Installed copies update themselves once this release is published."
+          Verify downloads against SHA256SUMS.txt. Installed copies update themselves once this release is published.
+          Code signing policy: https://github.com/$GITHUB_REPOSITORY#code-signing-policy"
