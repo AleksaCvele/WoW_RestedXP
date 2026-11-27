@@ -1,0 +1,37 @@
+
+RestedSyncDB = {
+	["Thrallina-Nightslayer"] = {
+		["class"] = "SHAMAN",
+		["faction"] = "Horde",
+		["gender"] = 3,
+		["isMaxLevel"] = false,
+		["isResting"] = false,
+		["level"] = 23,
+		["login"] = {
+			["level"] = 23,
+			["maxXP"] = 15200,
+			["restedPct"] = 71,
+			["restedXP"] = 10792,
+			["timestamp"] = 1798108000,
+		},
+		["maxXP"] = 15200,
+		["name"] = "Thrallina",
+		["prevLogout"] = {
+			["isResting"] = true,
+			["level"] = 23,
+			["maxXP"] = 15200,
+			["restedPct"] = 50,
+			["restedXP"] = 7600,
+			["timestamp"] = 1798000000,
+		},
+		["race"] = "Orc",
+		["realm"] = "Nightslayer",
+		["restedPct"] = 67.052631578947,
+		["restedXP"] = 10192,
+		["schema"] = 2,
+		["timestamp"] = 1798110400,
+		["toc"] = 16001,
+		["xp"] = 5300,
+		["xpDisabled"] = false,
+	},
+}

@@ -1,0 +1,105 @@
+name: Build
+
+# Every push: tests, the addon zip and the Windows installer (download them from the run's
+# "Artifacts" section). Tags like v1.0.0 or a manual run also build macOS and, for tags,
+# create a draft GitHub release with the installers attached.
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+    paths-ignore: ["**.md", "assets-src/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Addon syntax check
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq lua5.1
+          luac5.1 -p addon/RestedSync/RestedSync.lua
+          lua5.1 tests/addon/harness.lua > /tmp/out.lua
+          diff -u tests/fixtures/RestedSync.generated.lua /tmp/out.lua
+      - run: npm run package:addon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RestedSync-addon
+          path: release/RestedSync-*.zip
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: npm ci
+      - name: Build Windows installer (.exe + .msi)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          releaseName: ${{ github.ref_type == 'tag' && format('WoW Rested Tracker {0}', github.ref_name) || '' }}
+          releaseBody: "Download the installer for your OS below. Grab RestedSync-*.zip from the run artifacts for the WoW addon."
+          releaseDraft: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-windows
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+
+  # macOS runners cost 10x the Actions minutes, so only build them for tags / manual runs.
+  macos:
+    needs: test
+    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+      - run: npm ci
+      - name: Build macOS app (.dmg, universal)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --target universal-apple-darwin
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          releaseName: ${{ github.ref_type == 'tag' && format('WoW Rested Tracker {0}', github.ref_name) || '' }}
+          releaseDraft: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-macos
+          path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg

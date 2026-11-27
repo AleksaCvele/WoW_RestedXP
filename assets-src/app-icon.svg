@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c2a4f"/>
+      <stop offset="1" stop-color="#0a0f1d"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f3d488"/>
+      <stop offset="0.5" stop-color="#b98a32"/>
+      <stop offset="1" stop-color="#f0cc78"/>
+    </linearGradient>
+    <linearGradient id="moon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff1c4"/>
+      <stop offset="1" stop-color="#e2b14d"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#1e40af"/>
+      <stop offset="1" stop-color="#60a5fa"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.42" cy="0.42" r="0.5">
+      <stop offset="0" stop-color="#5b7fd6" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#5b7fd6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="56" y="56" width="912" height="912" rx="200" fill="url(#bg)"/>
+  <rect x="56" y="56" width="912" height="912" rx="200" fill="url(#glow)"/>
+  <rect x="80" y="80" width="864" height="864" rx="178" fill="none" stroke="url(#rim)" stroke-width="28"/>
+  <!-- stars -->
+  <circle cx="250" cy="250" r="12" fill="#cfe0ff" opacity="0.8"/>
+  <circle cx="790" cy="560" r="9" fill="#cfe0ff" opacity="0.6"/>
+  <circle cx="210" cy="600" r="8" fill="#cfe0ff" opacity="0.5"/>
+  <!-- crescent moon -->
+  <path d="M560 205a265 265 0 1 0 214 390A225 225 0 0 1 560 205z" fill="url(#moon)"/>
+  <!-- Zzz -->
+  <g fill="none" stroke="#fff1c4" stroke-width="34" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M610 208h112l-112 128h112"/>
+    <path d="M750 360h70l-70 80h70"/>
+  </g>
+  <!-- rested XP bar with bubbles -->
+  <rect x="190" y="758" width="644" height="72" rx="36" fill="#070b14" stroke="#2c3b5e" stroke-width="10"/>
+  <rect x="204" y="772" width="452" height="44" rx="22" fill="url(#bar)"/>
+  <g stroke="#070b14" stroke-width="8" opacity="0.6">
+    <path d="M318 772v44M432 772v44M546 772v44M660 772v44M774 772v44"/>
+  </g>
+</svg>
