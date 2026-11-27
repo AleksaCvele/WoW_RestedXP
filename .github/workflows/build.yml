@@ -14,8 +14,11 @@ name: Build
 
 on:
   push:
-    branches: ["**"]
+    branches: ["**", "!dependabot/**"]
     tags: ["v*"]
+    paths-ignore: ["**.md", "assets-src/**", "docs/**"]
+  # Dependabot / contributor pull requests are built once, as pull requests.
+  pull_request:
     paths-ignore: ["**.md", "assets-src/**", "docs/**"]
   workflow_dispatch:
 
