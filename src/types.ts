@@ -58,7 +58,8 @@ export interface CharacterPrefs {
   notifiedTimestamp?: number;
 }
 
-export type AvatarMode = "class" | "raceClass" | "portrait";
+export type AvatarMode = "class" | "portrait";
+const AVATAR_MODES: readonly AvatarMode[] = ["class", "portrait"];
 export type ViewMode = "expanded" | "compact";
 
 export interface DisplaySettings {
@@ -173,6 +174,8 @@ export function normalizeState(raw: unknown): AppState {
       : [],
     display: { ...base.settings.display, ...(s.display ?? {}) },
     behavior: { ...base.settings.behavior, ...(s.behavior ?? {}) },
+    // Unknown styles (e.g. the removed "raceClass" badge) fall back to the class crest.
+    avatarMode: AVATAR_MODES.includes(s.avatarMode as AvatarMode) ? (s.avatarMode as AvatarMode) : "class",
   };
   const prefs: Record<string, CharacterPrefs> = {};
   for (const [k, v] of Object.entries(r.prefs ?? {})) {

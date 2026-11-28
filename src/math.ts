@@ -127,6 +127,9 @@ function pctOf(point: RestedPoint): number {
  */
 export function inferWellRestedRank(prevLogout: RestedPoint | undefined, login: RestedPoint | undefined): RankInference | null {
   if (!prevLogout || !login) return null;
+  // maxXP 1 means the addon had no real XP data (RestedSync 1.0.0 saved such values
+  // at logout on WoW Forever), so the pair can't tell us anything.
+  if (prevLogout.maxXP <= 1 || login.maxXP <= 1) return null;
   if (prevLogout.level !== login.level) return null;
   const hoursOffline = (login.timestamp - prevLogout.timestamp) / 3600;
   if (!Number.isFinite(hoursOffline) || hoursOffline < MIN_HOURS_OFFLINE) return null;

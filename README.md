@@ -1,9 +1,9 @@
 # WoW Rested Tracker + RestedSync addon
 
 A free, open-source **system-tray widget** that shows how much **rested XP** each of your
-World of Warcraft alts has built up while you weren't playing them. It's built for
-**WoW Forever** (including the *Well Rested* Legacy perk) and also works with Classic Era,
-Anniversary and Retail.
+World of Warcraft characters, your main included, has built up while you weren't playing
+them. It's built for **WoW Forever** (including the *Well Rested* Legacy perk) and also
+works with Classic Era, Anniversary and Retail.
 
 * **Automatic.** The tiny **RestedSync** addon records each character's rested XP, level and
   whether it logged out in an inn. The widget picks that up the moment you log out. You
@@ -15,7 +15,7 @@ Anniversary and Retail.
   roughly 10+ hours, the widget measures how fast its rested XP actually grew and works out
   its Well Rested rank (0–5). You can still set the rank by hand.
 * Lives in the tray, can start with Windows/macOS (off until you turn it on), sends a
-  notification when an alt is fully rested, and keeps itself up to date with signed
+  notification when a character is fully rested, and keeps itself up to date with signed
   updates. No ads, no account, no telemetry.
 
 | Expanded | Compact | Settings |
@@ -23,7 +23,7 @@ Anniversary and Retail.
 | <img src="docs/widget-expanded.png" width="260" alt="Expanded widget"> | <img src="docs/widget-compact.png" width="200" alt="Compact widget"> | <img src="docs/widget-settings.png" width="260" alt="Settings drawer"> |
 
 > Characters you have never logged into don't appear. They have no rested XP to track
-> anyway. Log into an alt once with the addon enabled and it shows up from then on.
+> anyway. Log into a character once with the addon enabled and it shows up from then on.
 
 ---
 
@@ -60,7 +60,7 @@ gaining offline.
    You should end up with `...\AddOns\RestedSync\RestedSync.toc`.
 2. On the character-select screen click **AddOns** and make sure **RestedSync** is ticked.
    If it says *Out of date*, tick **Load out of date AddOns** (see [Troubleshooting](#troubleshooting)).
-3. Log into each alt once and log out, ideally **in an inn or a capital city** so it
+3. Log into each character once and log out, ideally **in an inn or a capital city** so it
    gains rested XP at the full rate.
 
 The addon has no window, no slash commands and no settings. It only uses standard Blizzard
@@ -114,9 +114,9 @@ play several clients, you can watch several files at once.
 * **Pin** (📌) keeps it on top of other windows. Unpinned, it hides when you click away,
   like a tray flyout.
 * **Compact view** (☰) switches to slim one-line rows.
-* **⋯** on a card jumps to that character's settings: *Track character* (bench an alt
+* **⋯** on a card jumps to that character's settings: *Track character* (bench a character
   without deleting it), *Well Rested* rank, portrait, *Remove*.
-* The tray tooltip reads e.g. `WoW Rested Tracker — 3/9 Alts Maxed`.
+* The tray tooltip reads e.g. `WoW Rested Tracker — 3/9 Fully Rested`.
 * **Start with Windows/macOS** is off by default. Once your characters show up, the widget
   asks you once whether to turn it on. You can change it later in Settings.
 * **Updates** install themselves while the widget is hidden in the tray (toggle in
@@ -129,8 +129,8 @@ play several clients, you can watch several files at once.
 | --- | --- |
 | Data source | Watched files with status, Auto-Detect, Select file…, WoW folder… |
 | Display | Rested XP bar · countdown timer · level badge · Inn/World icon · inline Well Rested selector · color bars by class (off: rested blue → emerald when maxed) |
-| Avatar style | Class crest · Race + class badge · Custom portrait (URL or image file, falls back to the class crest) |
-| Behavior & alerts | Auto-sort by highest rested % · notify when an alt is fully rested · start with Windows/macOS (off by default) · hide benched characters · hide max-level characters · default Well Rested rank |
+| Avatar style | Class crest · Custom portrait (`https://` link or an image file picked with the folder button; falls back to the class crest) |
+| Behavior & alerts | Auto-sort by highest rested % · notify when a character is fully rested · start with Windows/macOS (off by default) · hide benched characters · hide max-level characters · default Well Rested rank |
 | Updates | Install updates automatically (on by default) · current version · Check now |
 | Characters | Per character: track toggle, Well Rested rank, portrait, remove |
 
@@ -229,7 +229,6 @@ The project doesn't need any.
 * **Addon interface version:** `## Interface:` in
   [`addon/RestedSync/RestedSync.toc`](addon/RestedSync/RestedSync.toc). Type
   `/dump select(4, GetBuildInfo())` in-game to see your client's number.
-* **Race artwork:** drop your own images into [`src/assets/races/`](src/assets/races/README.md).
 * **Class icons:** `src/assets/classes/*.svg` (original artwork, colored with the official
   class colors from `src/wow.ts`).
 

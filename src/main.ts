@@ -273,7 +273,7 @@ function tick(): void {
   const v = views();
   const { maxed, total, next } = summary(v);
 
-  let tooltip = total ? `${APP_NAME} — ${maxed}/${total} Alts Maxed` : APP_NAME;
+  let tooltip = total ? `${APP_NAME} — ${maxed}/${total} Fully Rested` : APP_NAME;
   if (next) tooltip += `\nNext: ${next.ch.name} in ${formatDuration(next.status.hoursUntilMax)}`;
   platform.setTrayTooltip(tooltip.slice(0, 127)).catch(() => {});
 
@@ -293,7 +293,7 @@ function tick(): void {
         platform.notify(`${one.ch.name} is fully rested`, describeChar(one)).catch(() => {});
       } else {
         platform
-          .notify(`${newlyMaxed.length} alts are fully rested`, newlyMaxed.map((x) => x.ch.name).join(", "))
+          .notify(`${newlyMaxed.length} characters are fully rested`, newlyMaxed.map((x) => x.ch.name).join(", "))
           .catch(() => {});
       }
     }

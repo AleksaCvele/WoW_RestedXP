@@ -40,7 +40,8 @@ body {
   color: var(--text);
   font: 13px/1.35 var(--font);
   -webkit-font-smoothing: antialiased;
-  overflow: hidden;
+  /* clip, not hidden: a hidden overflow can still be scrolled by focus/scrollIntoView. */
+  overflow: clip;
 }
 
 body {
@@ -107,7 +108,7 @@ html:not(.desktop) .widget {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: clip;
   background: var(--bg);
   border: 1px solid var(--border-strong);
 }
@@ -509,39 +510,6 @@ option {
   width: 100%;
   height: 100%;
 }
-.avatar-race {
-  background: none;
-  border: 0;
-  box-shadow: none;
-}
-.avatar-race .race-badge,
-.avatar-race .race-art {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 6px;
-}
-.avatar-badge {
-  position: absolute;
-  right: -3px;
-  bottom: -3px;
-  width: 46%;
-  height: 46%;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: #0d1016;
-  border: 1px solid color-mix(in srgb, var(--cc) 60%, transparent);
-  color: var(--cc);
-  padding: 2px;
-}
-.avatar-badge svg {
-  width: 100%;
-  height: 100%;
-}
-.avatar-sm .avatar-badge {
-  display: none;
-}
 .avatar-portrait {
   overflow: hidden;
 }
@@ -830,8 +798,15 @@ option {
 .field select {
   flex: none;
 }
+/* The hidden inputs must stay inside their label: if they were positioned against the
+   drawer they'd sit outside the scrolling area, and focusing one on click would scroll
+   the whole widget (the drawer jumped up and left a black area below). */
+.toggle {
+  position: relative;
+}
 .toggle input {
   position: absolute;
+  inset: 0;
   opacity: 0;
   pointer-events: none;
 }
@@ -899,6 +874,7 @@ option {
   border: 1px solid var(--border);
 }
 .seg {
+  position: relative; /* keeps the hidden radio inside the label, see .toggle */
   flex: 1 1 0;
   text-align: center;
   font-size: 11.5px;
@@ -910,6 +886,7 @@ option {
 }
 .seg input {
   position: absolute;
+  inset: 0;
   opacity: 0;
   pointer-events: none;
 }

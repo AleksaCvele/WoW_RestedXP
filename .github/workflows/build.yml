@@ -49,6 +49,8 @@ jobs:
           luac5.1 -p addon/RestedSync/RestedSync.lua
           lua5.1 tests/addon/harness.lua > /tmp/out.lua
           diff -u tests/fixtures/RestedSync.generated.lua /tmp/out.lua
+          lua5.1 tests/addon/realm-fallback.lua
+          lua5.1 tests/addon/logout-teardown.lua
       - run: npm run package:addon
       - uses: actions/upload-artifact@v7
         with:

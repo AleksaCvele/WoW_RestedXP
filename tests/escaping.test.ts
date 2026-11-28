@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { esc } from "../src/html";
-import { raceBadgeHtml } from "../src/icons";
 import { parseRestedSyncFile } from "../src/sync";
 import { buildViews, renderRoster, type UiState } from "../src/view";
 import { defaultState } from "../src/types";
@@ -25,12 +24,6 @@ describe("HTML escaping of SavedVariables data", () => {
     expect(esc(`<img src=x onerror="a">&'`)).toBe("&lt;img src=x onerror=&quot;a&quot;&gt;&amp;&#39;");
   });
 
-  it("escapes unknown race tokens on the race badge", () => {
-    const html = raceBadgeHtml("<b", 2);
-    expect(html).not.toContain("<b<");
-    expect(html).toContain("&lt;b");
-  });
-
   it("never renders markup from a hostile save file", () => {
     const evil = `RestedSyncDB = {
       ["x"] = {
@@ -42,7 +35,7 @@ describe("HTML escaping of SavedVariables data", () => {
       },
     }`;
     const state = defaultState();
-    state.settings.avatarMode = "raceClass";
+    state.settings.avatarMode = "portrait";
     state.settings.savedVariablesPaths = ["C:/WoW/_forever_/WTF/Account/A/SavedVariables/RestedSync.lua"];
     mergeCharacters(state, parseRestedSyncFile(evil, state.settings.savedVariablesPaths[0]).characters);
     for (const viewMode of ["expanded", "compact"] as const) {

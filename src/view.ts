@@ -2,7 +2,7 @@
 
 import { APP_NAME, SAVED_VARIABLES_FILE } from "./config";
 import { esc } from "./html";
-import { classIconSvg, icon, raceBadgeHtml } from "./icons";
+import { classIconSvg, icon } from "./icons";
 import { computeRested, formatAgo, formatDuration, formatPct, type RestedStatus } from "./math";
 import { describeSourcePath, effectiveRank, flavorLabel, isRemoved, prefsFor } from "./sync";
 import type { OsName } from "./platform";
@@ -116,11 +116,7 @@ function portraitSrc(url: string, ui: UiState): string | null {
 
 export function avatarHtml(state: AppState, ui: UiState, ch: SyncedCharacter, prefs: CharacterPrefs, size: "lg" | "sm" | "xs"): string {
   const crest = `<span class="crest">${classIconSvg(ch.classToken)}</span>`;
-  const mode = state.settings.avatarMode;
-  if (mode === "raceClass") {
-    return `<span class="avatar avatar-${size} avatar-race">${raceBadgeHtml(ch.race, ch.gender, ch.faction)}<span class="avatar-badge">${classIconSvg(ch.classToken)}</span></span>`;
-  }
-  if (mode === "portrait") {
+  if (state.settings.avatarMode === "portrait") {
     const src = portraitSrc(prefs.portraitUrl, ui);
     if (src) {
       return `<span class="avatar avatar-${size} avatar-portrait"><img src="${esc(src)}" alt="" draggable="false" referrerpolicy="no-referrer" data-fallback />${crest}</span>`;
@@ -136,7 +132,7 @@ export function renderHeader(state: AppState, views: CharView[]): string {
   const { maxed, total } = summary(views);
   const compact = state.settings.viewMode === "compact";
   const pinned = state.settings.pinned;
-  const sub = total === 0 ? "No characters yet" : compact ? `${maxed}/${total} maxed` : `${maxed} of ${total} alts fully rested`;
+  const sub = total === 0 ? "No characters yet" : compact ? `${maxed}/${total} maxed` : `${maxed} of ${total} characters fully rested`;
   return `
     <div class="brand">
       ${icon("zzz", "brand-icon")}
@@ -272,10 +268,10 @@ function emptyStateHtml(state: AppState, ui: UiState, allHidden: boolean): strin
   if (!hasPaths) {
     return `<div class="empty">
       <div class="empty-icon">${icon("zzz")}</div>
-      <h2>Track your alts' rested XP</h2>
+      <h2>Track your characters' rested XP</h2>
       <ol class="steps">
         <li>Install the <b>RestedSync</b> addon (in the <code>addon</code> folder) into <code>_forever_\\Interface\\AddOns</code>.</li>
-        <li>Log into each alt once and log out (ideally in an inn).</li>
+        <li>Log into each character once and log out (ideally in an inn).</li>
         <li>Point the widget at <code>${SAVED_VARIABLES_FILE}</code>:</li>
       </ol>
       <div class="btn-col">
@@ -288,7 +284,7 @@ function emptyStateHtml(state: AppState, ui: UiState, allHidden: boolean): strin
   return `<div class="empty">
     <div class="empty-icon">${icon("zzz")}</div>
     <h2>Waiting for your first logout</h2>
-    <p>The game writes <code>${SAVED_VARIABLES_FILE}</code> when you log out, exit or <code>/reload</code>. Log into each alt once with the RestedSync addon enabled. Characters appear here automatically.</p>
+    <p>The game writes <code>${SAVED_VARIABLES_FILE}</code> when you log out, exit or <code>/reload</code>. Log into each character once with the RestedSync addon enabled. Characters appear here automatically.</p>
     <button class="btn" data-action="sync">${icon("refresh")}Check again</button>
   </div>`;
 }
@@ -318,7 +314,7 @@ function startupPrompt(state: AppState, ui: UiState, views: CharView[]): string 
   const b = state.settings.behavior;
   if (!ui.isDesktop || state.settings.startupPromptDone || b.launchOnStartup || views.length === 0) return "";
   return `<div class="banner prompt">
-    <div class="prompt-text"><b>Start with ${osLabel(ui.os)}?</b><span>The widget can start quietly in the tray when you sign in, so you get a notification when an alt is fully rested.</span></div>
+    <div class="prompt-text"><b>Start with ${osLabel(ui.os)}?</b><span>The widget can start quietly in the tray when you sign in, so you get a notification when a character is fully rested.</span></div>
     <div class="prompt-actions">
       <button class="btn btn-sm primary" data-action="enable-startup">Turn on</button>
       <button class="btn btn-sm" data-action="dismiss-startup">No thanks</button>
@@ -538,16 +534,15 @@ export function renderSettings(state: AppState, ui: UiState, views: CharView[]):
         <h3>Avatar style</h3>
         <div class="segmented">
           ${avatar("class", "Class crest")}
-          ${avatar("raceClass", "Race + class")}
           ${avatar("portrait", "Custom portrait")}
         </div>
-        ${s.avatarMode === "portrait" ? `<p class="hint">Set a portrait per character below. Empty or broken links fall back to the class crest.</p>` : ""}
+        ${s.avatarMode === "portrait" ? `<p class="hint">Set a portrait for each character under <b>Characters</b> below: an <code>https://</code> image link, or the folder button to pick an image file. Empty or broken links fall back to the class crest.</p>` : ""}
       </section>
 
       <section class="group">
         <h3>Behavior &amp; alerts</h3>
         ${toggle("behavior.autoSort", b.autoSort, "Auto-sort by highest rested %")}
-        ${toggle("behavior.notifyOnMax", b.notifyOnMax, "Notify me when an alt is fully rested", "Desktop notification when a character reaches its cap")}
+        ${toggle("behavior.notifyOnMax", b.notifyOnMax, "Notify me when a character is fully rested", "Desktop notification when a character reaches its cap")}
         ${ui.isDesktop ? toggle("behavior.launchOnStartup", b.launchOnStartup, `Start with ${osLabel(ui.os)}`, "Starts quietly in the tray when you sign in") : ""}
         ${toggle("behavior.hideUntracked", b.hideUntracked, "Hide benched (untracked) characters")}
         ${toggle("behavior.hideMaxLevel", b.hideMaxLevel, "Hide max-level characters")}

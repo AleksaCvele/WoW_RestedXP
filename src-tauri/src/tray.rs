@@ -55,7 +55,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// e.g. "WoW Rested Tracker — 3/9 Alts Maxed"
+/// e.g. "WoW Rested Tracker — 3/9 Fully Rested"
 #[tauri::command]
 pub fn set_tray_tooltip(app: AppHandle, text: String) -> Result<(), String> {
     let text: String = text.chars().take(MAX_TOOLTIP_CHARS).collect();

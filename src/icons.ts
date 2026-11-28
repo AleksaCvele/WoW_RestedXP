@@ -1,8 +1,7 @@
-// Bundled artwork: class crests (src/assets/classes/*.svg), generated race badges and UI glyphs.
+// Bundled artwork: class crests (src/assets/classes/*.svg) and UI glyphs.
 // All artwork here is original; no Blizzard game assets are bundled.
 
-import { esc } from "./html";
-import { classInfo, raceInfo } from "./wow";
+import { classInfo } from "./wow";
 
 const classSvgs = import.meta.glob("./assets/classes/*.svg", {
   eager: true,
@@ -10,50 +9,9 @@ const classSvgs = import.meta.glob("./assets/classes/*.svg", {
   import: "default",
 }) as Record<string, string>;
 
-/** Optional user-supplied race art: src/assets/races/<RaceToken>_<male|female>.(png|svg|webp|jpg) */
-const raceArt = import.meta.glob("./assets/races/*.{png,svg,webp,jpg,jpeg}", {
-  eager: true,
-  query: "?url",
-  import: "default",
-}) as Record<string, string>;
-
 export function classIconSvg(classToken: string): string {
   const info = classInfo(classToken);
   return classSvgs[`./assets/classes/${info.icon}.svg`] ?? classSvgs["./assets/classes/warrior.svg"] ?? "";
-}
-
-function findRaceArt(race: string, gender: number): string | undefined {
-  const g = gender === 3 ? "female" : "male";
-  const wanted = [`${race}_${g}`, race].map((s) => s.toLowerCase());
-  for (const [path, url] of Object.entries(raceArt)) {
-    const base = path.split("/").pop()!.replace(/\.[^.]+$/, "").toLowerCase();
-    if (wanted.includes(base)) return url;
-  }
-  return undefined;
-}
-
-const FACTION_COLORS = {
-  Alliance: { top: "#2f5fb8", bottom: "#142a5c", rim: "#c9a54a" },
-  Horde: { top: "#a3262a", bottom: "#4a0f12", rim: "#b8b8b8" },
-  Neutral: { top: "#4b5563", bottom: "#1f2937", rim: "#c9a54a" },
-} as const;
-
-/** A heraldic shield with the race monogram, tinted by faction, with a gender pip. */
-export function raceBadgeHtml(race: string, gender: number, faction?: string): string {
-  const art = findRaceArt(race, gender);
-  if (art) return `<img class="race-art" src="${esc(art)}" alt="" draggable="false" />`;
-  const info = raceInfo(race, faction);
-  const c = FACTION_COLORS[info.faction];
-  const gid = `rg-${info.faction}`;
-  const pip = gender === 3 ? "♀" : gender === 2 ? "♂" : "";
-  return `<svg class="race-badge" viewBox="0 0 40 40" aria-hidden="true">
-    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="${c.top}"/><stop offset="1" stop-color="${c.bottom}"/>
-    </linearGradient></defs>
-    <path d="M20 2.5 35 7v11c0 9.6-6.3 16.4-15 19.5C11.3 34.4 5 27.6 5 18V7z" fill="url(#${gid})" stroke="${c.rim}" stroke-width="1.6"/>
-    <text x="20" y="23.5" text-anchor="middle" font-size="12.5" font-weight="700" fill="#f5f0e1" font-family="Georgia, 'Times New Roman', serif">${esc(info.short)}</text>
-    ${pip ? `<text x="20" y="32.5" text-anchor="middle" font-size="7.5" fill="${c.rim}">${pip}</text>` : ""}
-  </svg>`;
 }
 
 const ICONS = {

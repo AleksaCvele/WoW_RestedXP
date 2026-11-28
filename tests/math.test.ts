@@ -129,4 +129,11 @@ describe("inferWellRestedRank", () => {
     expect(inferWellRestedRank(point(10, t0, true), { ...point(40, t0 + 30 * HOUR), level: 31 })).toBeNull();
     expect(inferWellRestedRank(undefined, point(40, t0))).toBeNull();
   });
+
+  it("ignores a logout saved without real XP data (RestedSync 1.0.0 on WoW Forever)", () => {
+    // 0 rested, "open world", 120 h later 22.5% fits rank 5 exactly, but the 0 is bogus.
+    const broken = { ...point(0, t0, false), restedXP: 0, maxXP: 1 };
+    const gain = 120 * 0.15625 * 1.2;
+    expect(inferWellRestedRank(broken, point(gain, t0 + 120 * HOUR))).toBeNull();
+  });
 });

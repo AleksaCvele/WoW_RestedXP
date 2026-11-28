@@ -43,8 +43,8 @@
     "active": true,
     "targets": "all",
     "category": "Utility",
-    "shortDescription": "Track rested XP for your WoW alts from the system tray",
-    "longDescription": "A free, open-source system-tray widget that reads the RestedSync addon's SavedVariables and shows how much rested XP each of your World of Warcraft alts has built up while offline, including WoW Forever's Well Rested perk.",
+    "shortDescription": "Track rested XP for all your WoW characters from the system tray",
+    "longDescription": "A free, open-source system-tray widget that reads the RestedSync addon's SavedVariables and shows how much rested XP each of your World of Warcraft characters has built up while offline, including WoW Forever's Well Rested perk.",
     "copyright": "MIT License",
     "icon": [
       "icons/32x32.png",
